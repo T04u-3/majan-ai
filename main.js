@@ -489,3 +489,203 @@ if(player.reached) base+=1000;
 return base;
 
 }
+
+let doraIndicator=null;
+
+function setupDora(){
+    doraIndicator=drawTile();
+    log("ドラ表示牌: "+doraIndicator);
+}
+
+function getDora(tile){
+    if(!tile) return null;
+
+    if(tile.length===2){
+        let n=parseInt(tile[0]);
+        let s=tile[1];
+        n=n%9+1;
+        return n+s;
+    }
+
+    const order=["E","S","W","N","P","F","C"];
+    let i=order.indexOf(tile);
+    return order[(i+1)%order.length];
+}
+
+function countDora(hand){
+    let d=getDora(doraIndicator);
+    let c=0;
+
+    for(let t of hand){
+        if(t===d) c++;
+    }
+
+    return c;
+}
+
+function shanten(hand){
+
+let tiles=[...hand];
+tiles.sort();
+
+let best=8;
+
+function dfs(hand,mentsu,taatsu,pair){
+
+if(hand.length===0){
+let s=8-mentsu*2-taatsu-pair;
+best=Math.min(best,s);
+return;
+}
+
+let t=hand[0];
+
+if(hand.filter(x=>x===t).length>=3){
+
+let copy=[...hand];
+removeTiles(copy,t,3);
+dfs(copy,mentsu+1,taatsu,pair);
+
+}
+
+let num=parseInt(t);
+let suit=t[1];
+
+let t2=(num+1)+suit;
+let t3=(num+2)+suit;
+
+if(hand.includes(t2)&&hand.includes(t3)){
+
+let copy=[...hand];
+removeTiles(copy,t,1);
+removeTiles(copy,t2,1);
+removeTiles(copy,t3,1);
+
+dfs(copy,mentsu+1,taatsu,pair);
+
+}
+
+if(!pair && hand.filter(x=>x===t).length>=2){
+
+let copy=[...hand];
+removeTiles(copy,t,2);
+
+dfs(copy,mentsu,taatsu,pair+1);
+
+}
+
+let copy=[...hand];
+copy.shift();
+
+dfs(copy,mentsu,taatsu,pair);
+
+}
+
+dfs(tiles,0,0,0);
+
+return best;
+}
+
+function aiDiscardSmart(p){
+
+let bestTile=null;
+let bestScore=999;
+
+for(let tile of p.hand){
+
+let copy=[...p.hand];
+copy.splice(copy.indexOf(tile),1);
+
+let s=shanten(copy);
+
+if(s<bestScore){
+bestScore=s;
+bestTile=tile;
+}
+
+}
+
+if(bestTile){
+
+p.hand.splice(p.hand.indexOf(bestTile),1);
+return bestTile;
+
+}
+
+return randomDiscard(p.hand);
+
+}
+
+function checkYaku(hand,player){
+
+let yaku=[];
+
+if(player.reached) yaku.push("リーチ");
+
+let allSimples=true;
+
+for(let t of hand){
+
+if(t[0]==="1"||t[0]==="9"||HONORS.includes(t)){
+allSimples=false;
+}
+
+}
+
+if(allSimples) yaku.push("タンヤオ");
+
+let dragons=["P","F","C"];
+
+for(let d of dragons){
+
+if(hand.filter(x=>x===d).length>=3){
+yaku.push("役牌");
+}
+
+}
+
+return yaku;
+}
+
+function calculateScore(player){
+
+let yaku=checkYaku(player.hand,player);
+
+let han=yaku.length;
+
+let d=countDora(player.hand);
+
+han+=d;
+
+let base=1000*han;
+
+return base;
+
+}
+
+let roundWind="東";
+let kyoku=1;
+
+function nextRound(){
+
+kyoku++;
+
+if(kyoku>4){
+
+roundWind="南";
+kyoku=1;
+
+}
+
+log("---- "+roundWind+kyoku+"局 ----");
+
+createWall();
+setupDora();
+deal();
+
+turn=0;
+
+nextTurn();
+
+}
+

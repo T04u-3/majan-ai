@@ -1,9 +1,10 @@
-const SUITS = ["m","p","s"];
-const HONORS = ["E","S","W","N","P","F","C"];
+const SUITS=["m","p","s"];
+const HONORS=["E","S","W","N","P","F","C"];
 
 let wall=[];
 let players=[];
 let turn=0;
+let gameRunning=false;
 
 function log(t){
 
@@ -26,9 +27,9 @@ function parsePersonality(text){
 return{
 
 aggression:text.includes("攻撃")?0.9:0.4,
-defense:text.includes("守備")?0.9:0.8,
+defense:text.includes("守備")?0.9:0.4,
 call:text.includes("鳴き")?0.8:0.2,
-reach:text.includes("リーチ")?0.9:0.3,
+reach:text.includes("リーチ")?0.8:0.3,
 beginner:text.includes("初心者")
 
 };
@@ -39,10 +40,11 @@ function createNPC(name,text){
 
 return{
 
-name,
-text,
+name:name,
+text:text,
 hand:[],
 discards:[],
+reached:false,
 personality:parsePersonality(text)
 
 };
@@ -125,17 +127,15 @@ function aiDiscard(p){
 
 let hand=p.hand;
 
-if(p.personality.defense>0.8){
-
 hand.sort();
+
+if(p.personality.defense>0.8){
 
 return hand.shift();
 
 }
 
 if(p.personality.aggression>0.8){
-
-hand.sort();
 
 return hand.pop();
 
@@ -145,11 +145,54 @@ return randomDiscard(hand);
 
 }
 
+function removeTiles(hand,tile,count){
+
+let removed=0;
+
+for(let i=hand.length-1;i>=0;i--){
+
+if(hand[i]===tile){
+
+hand.splice(i,1);
+
+removed++;
+
+if(removed===count) break;
+
+}
+
+}
+
+}
+
 function checkPon(player,tile){
 
-let count=player.hand.filter(t=>t===tile).length;
+return player.hand.filter(t=>t===tile).length>=2;
 
-return count>=2;
+}
+
+function checkChi(player,tile){
+
+if(tile.length!==2) return false;
+
+let num=parseInt(tile);
+
+let suit=tile[1];
+
+let a=(num-2)+suit;
+let b=(num-1)+suit;
+let c=(num+1)+suit;
+let d=(num+2)+suit;
+
+let hand=player.hand;
+
+if(hand.includes(a)&&hand.includes(b)) return [a,b];
+
+if(hand.includes(b)&&hand.includes(c)) return [b,c];
+
+if(hand.includes(c)&&hand.includes(d)) return [c,d];
+
+return false;
 
 }
 
@@ -163,11 +206,24 @@ if(Math.random()<p.personality.call){
 
 if(checkPon(p,tile)){
 
+removeTiles(p.hand,tile,2);
+
 speak(p,"ポン！");
 
-p.hand=p.hand.filter(t=>t!==tile);
+p.hand.push(tile);
 
-p.hand=p.hand.filter(t=>t!==tile);
+return p;
+
+}
+
+let chi=checkChi(p,tile);
+
+if(chi){
+
+removeTiles(p.hand,chi[0],1);
+removeTiles(p.hand,chi[1],1);
+
+speak(p,"チー！");
 
 p.hand.push(tile);
 
@@ -183,11 +239,29 @@ return null;
 
 }
 
+function tryReach(p){
+
+if(p.reached) return;
+
+if(Math.random()<p.personality.reach){
+
+p.reached=true;
+
+speak(p,"リーチ！");
+
+}
+
+}
+
 function nextTurn(){
+
+if(!gameRunning) return;
 
 if(wall.length===0){
 
 log("流局");
+
+gameRunning=false;
 
 return;
 
@@ -198,7 +272,10 @@ let p=players[turn%4];
 let tile=drawTile();
 
 p.hand.push(tile);
-  if(isWinning(p.hand)){
+
+log(p.name+" ツモ "+tile);
+
+if(isWinning(p.hand)){
 
 speak(p,"ツモ！！");
 
@@ -206,11 +283,13 @@ let score=calculateScore(p);
 
 log(p.name+" 和了 "+score+"点");
 
+gameRunning=false;
+
 return;
 
 }
 
-log(p.name+" ツモ "+tile);
+tryReach(p);
 
 let discard;
 
@@ -227,7 +306,8 @@ discard=aiDiscard(p);
 p.discards.push(discard);
 
 log(p.name+" 打 "+discard);
-  for(let other of players){
+
+for(let other of players){
 
 if(other===p) continue;
 
@@ -242,6 +322,8 @@ speak(other,"ロン！");
 let score=calculateScore(other);
 
 log(other.name+" ロン "+score+"点");
+
+gameRunning=false;
 
 return;
 
@@ -261,7 +343,7 @@ turn++;
 
 }
 
-setTimeout(nextTurn,600);
+setTimeout(nextTurn,500);
 
 }
 
@@ -276,6 +358,7 @@ players.push({
 name:"あなた",
 hand:[],
 discards:[],
+reached:false,
 personality:{}
 
 });
@@ -300,6 +383,8 @@ speak(p,"よろしく。");
 
 turn=0;
 
+gameRunning=true;
+
 nextTurn();
 
 }
@@ -322,11 +407,9 @@ return map;
 
 function isWinning(hand){
 
-let tiles=[...hand];
+if(hand.length%3!==2) return false;
 
-tiles.sort();
-
-let counts=countTiles(tiles);
+let counts=countTiles(hand);
 
 for(let tile in counts){
 
@@ -334,7 +417,7 @@ if(counts[tile]>=2){
 
 counts[tile]-=2;
 
-if(canFormSets(counts)) return true;
+if(canFormSets({...counts})) return true;
 
 counts[tile]+=2;
 
@@ -348,23 +431,11 @@ return false;
 
 function canFormSets(counts){
 
-let tiles=[];
+let keys=Object.keys(counts).filter(k=>counts[k]>0);
 
-for(let t in counts){
+if(keys.length===0) return true;
 
-for(let i=0;i<counts[t];i++){
-
-tiles.push(t);
-
-}
-
-}
-
-tiles.sort();
-
-if(tiles.length===0) return true;
-
-let t=tiles[0];
+let t=keys[0];
 
 if(counts[t]>=3){
 
@@ -380,26 +451,21 @@ let suit=t.slice(-1);
 
 let num=parseInt(t);
 
-if(["m","p","s"].includes(suit)){
+if(SUITS.includes(suit)){
 
 let t2=(num+1)+suit;
-
 let t3=(num+2)+suit;
 
-if(counts[t2]&&counts[t3]){
+if(counts[t2]>0 && counts[t3]>0){
 
 counts[t]--;
-
 counts[t2]--;
-
 counts[t3]--;
 
 if(canFormSets(counts)) return true;
 
 counts[t]++;
-
 counts[t2]++;
-
 counts[t3]++;
 
 }
@@ -417,6 +483,8 @@ let base=1000;
 if(player.personality.aggression>0.8) base+=1000;
 
 if(player.personality.defense>0.8) base+=500;
+
+if(player.reached) base+=1000;
 
 return base;
 

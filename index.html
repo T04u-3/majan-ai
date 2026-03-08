@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>キャラ麻雀シミュレーター</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<h1>🀄キャラ麻雀シミュレーター</h1>
+
+<div class="setup">
+
+<h2>NPCキャラ設定</h2>
+
+<div>
+NPC1<br>
+<textarea id="npc1">
+攻撃型。リーチ大好き。押し重視。
+</textarea>
+</div>
+
+<div>
+NPC2<br>
+<textarea id="npc2">
+守備型。危険牌は絶対切らない。
+</textarea>
+</div>
+
+<div>
+NPC3<br>
+<textarea id="npc3">
+初心者。鳴きが多い。
+</textarea>
+</div>
+
+<button onclick="startGame()">対局開始</button>
+
+</div>
+
+<h2>対局ログ</h2>
+<div id="log"></div>
+
+<script src="main.js"></script>
+
+</body>
+</html>

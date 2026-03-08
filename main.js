@@ -198,6 +198,17 @@ let p=players[turn%4];
 let tile=drawTile();
 
 p.hand.push(tile);
+  if(isWinning(p.hand)){
+
+speak(p,"ツモ！！");
+
+let score=calculateScore(p);
+
+log(p.name+" 和了 "+score+"点");
+
+return;
+
+}
 
 log(p.name+" ツモ "+tile);
 
@@ -216,6 +227,27 @@ discard=aiDiscard(p);
 p.discards.push(discard);
 
 log(p.name+" 打 "+discard);
+  for(let other of players){
+
+if(other===p) continue;
+
+let temp=[...other.hand];
+
+temp.push(discard);
+
+if(isWinning(temp)){
+
+speak(other,"ロン！");
+
+let score=calculateScore(other);
+
+log(other.name+" ロン "+score+"点");
+
+return;
+
+}
+
+}
 
 let caller=tryCall(discard,p);
 
@@ -269,5 +301,123 @@ speak(p,"よろしく。");
 turn=0;
 
 nextTurn();
+
+}
+
+function countTiles(hand){
+
+let map={};
+
+for(let t of hand){
+
+if(!map[t]) map[t]=0;
+
+map[t]++;
+
+}
+
+return map;
+
+}
+
+function isWinning(hand){
+
+let tiles=[...hand];
+
+tiles.sort();
+
+let counts=countTiles(tiles);
+
+for(let tile in counts){
+
+if(counts[tile]>=2){
+
+counts[tile]-=2;
+
+if(canFormSets(counts)) return true;
+
+counts[tile]+=2;
+
+}
+
+}
+
+return false;
+
+}
+
+function canFormSets(counts){
+
+let tiles=[];
+
+for(let t in counts){
+
+for(let i=0;i<counts[t];i++){
+
+tiles.push(t);
+
+}
+
+}
+
+tiles.sort();
+
+if(tiles.length===0) return true;
+
+let t=tiles[0];
+
+if(counts[t]>=3){
+
+counts[t]-=3;
+
+if(canFormSets(counts)) return true;
+
+counts[t]+=3;
+
+}
+
+let suit=t.slice(-1);
+
+let num=parseInt(t);
+
+if(["m","p","s"].includes(suit)){
+
+let t2=(num+1)+suit;
+
+let t3=(num+2)+suit;
+
+if(counts[t2]&&counts[t3]){
+
+counts[t]--;
+
+counts[t2]--;
+
+counts[t3]--;
+
+if(canFormSets(counts)) return true;
+
+counts[t]++;
+
+counts[t2]++;
+
+counts[t3]++;
+
+}
+
+}
+
+return false;
+
+}
+
+function calculateScore(player){
+
+let base=1000;
+
+if(player.personality.aggression>0.8) base+=1000;
+
+if(player.personality.defense>0.8) base+=500;
+
+return base;
 
 }
